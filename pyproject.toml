@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "bill-ai"
+version = "0.1.0"
+description = "Analyze large legislative bills with AI"
+authors = ["Nick Knipe <nick@knipe.io>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+pdfplumber = "^0.11.4"
+pdf-tocgen = "^1.3.4"
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.4"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

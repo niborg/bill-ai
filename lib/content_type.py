@@ -1,0 +1,17 @@
+from enum import Enum
+
+class ContentType(Enum):
+    CONTENT = 1
+    INTRODUCTORY_SECTION = 2
+    TABLE = 3
+    LINE_NUMBER = 4
+    PREAMBLE = 5
+    TOC_ITEM = 6
+    TOC_HEADING = 7
+    PAGE_NUMBER = 8
+    FILE_PATH = 9
+    DIVISION_HEADING_1 = 10
+    DIVISION_HEADING_2 = 11
+    DIVISION_SUBHEADING_1 = 12
+    DIVISION_SUBHEADING_2 = 13
+    CONTENT_ALT_1 = 14

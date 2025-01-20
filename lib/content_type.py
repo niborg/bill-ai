@@ -15,3 +15,4 @@ class ContentType(Enum):
     DIVISION_SUBHEADING_1 = 12
     DIVISION_SUBHEADING_2 = 13
     CONTENT_ALT_1 = 14
+    LAW_SECTION = 15

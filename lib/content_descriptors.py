@@ -1,9 +1,11 @@
 import string
 import re
 from .casing import Casing
+import pdb
 
 class ContentCharacteristics:
     TOLERANCE = 0.1
+    FORBIDDEN_START_CHARS = "‘"
 
     def __init__(self, font, size, casing=Casing.UNKNOWN):
         self.font = font
@@ -29,7 +31,7 @@ class ContentGroup(ContentCharacteristics):
                 casing = Casing.NORMAL
             elif any(c in string.digits for c in self.text):
                 casing = Casing.UNKNOWN
-            elif self._is_acronym(self.text):
+            elif self.is_acronym():
                 casing = Casing.UNKNOWN
             elif all(c['size'] == self.chars[0]['size'] for c in self.chars):
                 casing = Casing.ALL_CAPS
@@ -49,5 +51,21 @@ class ContentGroup(ContentCharacteristics):
     def same_line_as(self, other):
         return self.y_bottom == other.y_bottom
 
-    def _is_acronym(self, word):
-        return bool(re.fullmatch(r'([A-Z]\.)+', word))
+    def is_acronym(self):
+        return bool(re.fullmatch(r'([A-Z]\.)+', self.text))
+
+    def is_enumeration(self):
+        return (
+            bool(re.search(r'^\(([a-zA-Z]|\d+)\)$', self.text))
+            or bool(re.search(r'^\([iIvVxXlLcCdDmM]+\)$', self.text)) # lowercase roman numerals
+            or bool(re.search(r'^([a-zA-Z]|\d+)\.$', self.text))
+        )
+
+    def is_number(self):
+        return bool(re.search(r'^\d+$', self.text))
+
+    def is_punctuation(self):
+        return len(self.text) == 1 and not self.text[0].isalnum()
+
+    def starts_with_forbidden_punctuation(self):
+        return self.text[0] in self.FORBIDDEN_START_CHARS

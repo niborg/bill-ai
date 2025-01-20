@@ -2,11 +2,18 @@ import pytest
 import pdb
 from lib import HeadingAccumulator, Casing
 
+ROMAN_NUMERALS = [
+    "i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x",
+    "xi", "xii", "xiii", "xiv", "xv", "xvi", "xvii", "xviii", "ixx", "xx",
+    "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X",
+    "XI", "XII", "XIII", "XIV", "XV", "XVI", "XVII", "XVIII", "IXX", "XX",
+]
+
 @pytest.fixture
 def accumulator():
     return HeadingAccumulator(width=612)
 
-class TestAccumulatorFromInitialState:
+class TestFromInitialState:
     def test_initial_state(self, accumulator):
         assert not accumulator.words
         assert accumulator.status == HeadingAccumulator.Status.UNDETERMINED
@@ -139,6 +146,25 @@ class TestAccumulatorFromInitialState:
         assert not accumulator.is_heading_complete()
         assert accumulator.words == [word]
 
+    @pytest.mark.parametrize("roman_numeral", ROMAN_NUMERALS)
+    def test_adding_roman_numeral_parenthetical_enumeration(self, accumulator, roman_numeral):
+        chars = (
+            [{'text': '(', 'size': 14, 'y1': 10}] +
+            [{'text': char, 'size': 14, 'y1': 10} for char in roman_numeral] +
+            [{'text': ')', 'size': 14, 'y1': 10}]
+        )
+        word = {
+            'fontname': 'JJGECB+DeVinne',
+            'text': f'({roman_numeral})',
+            'bottom': 10,
+            'chars': chars
+        }
+        assert accumulator.add(word) == True
+        assert accumulator.status == HeadingAccumulator.Status.UNDETERMINED
+        assert accumulator.casing == Casing.UNKNOWN
+        assert not accumulator.is_heading_complete()
+        assert accumulator.words == [word]
+
     def test_parenthetical_word(self, accumulator):
         word = {
             'fontname': 'JJGECB+DeVinne',
@@ -154,7 +180,7 @@ class TestAccumulatorFromInitialState:
         }
         assert accumulator.add(word) == False
         assert accumulator.status == HeadingAccumulator.Status.NOT_HEADING
-        assert accumulator.casing == Casing.NORMAL
+        assert accumulator.casing == Casing.UNKNOWN
         assert accumulator.is_not_heading()
         assert accumulator.words == []
 
@@ -194,7 +220,25 @@ class TestAccumulatorFromInitialState:
         assert not accumulator.is_heading_complete()
         assert accumulator.words == [word]
 
-    def test_adding_number_with_parenthesis(self, accumulator):
+    def test_adding_number_with_period(self, accumulator):
+        word = {
+            'fontname': 'JJGECB+DeVinne',
+            'text': '3.',
+            'bottom': 10,
+            'x0': 500.0,
+            'x1': 520.0,
+            'chars': [
+                {'text': '3', 'size': 14, 'y1': 19},
+                {'text': '.', 'size': 14, 'y1': 19}
+            ]
+        }
+        assert accumulator.add(word) == True
+        assert accumulator.status == HeadingAccumulator.Status.UNDETERMINED
+        assert accumulator.casing == Casing.UNKNOWN
+        assert not accumulator.is_heading_complete()
+        assert accumulator.words == [word]
+
+    def test_adding_number_in_parenthesis(self, accumulator):
         word = {
             'fontname': 'JJGECB+DeVinne',
             'text': '(1)',
@@ -213,7 +257,7 @@ class TestAccumulatorFromInitialState:
         assert not accumulator.is_heading_complete()
         assert accumulator.words == [word]
 
-    def test_adding_number_with_punctuation(self, accumulator):
+    def test_adding_number_with_quotes(self, accumulator):
         word = {
             'fontname': 'JJGECB+DeVinne',
             'text': '2025’’.',
@@ -230,13 +274,49 @@ class TestAccumulatorFromInitialState:
                 {'text': '.', 'size': 14, 'y1': 19}
             ]
         }
-        assert accumulator.add(word) == True
-        assert accumulator.status == HeadingAccumulator.Status.UNDETERMINED
+        assert accumulator.add(word) == False
+        assert accumulator.status == HeadingAccumulator.Status.NOT_HEADING
         assert accumulator.casing == Casing.UNKNOWN
-        assert not accumulator.is_heading_complete()
-        assert accumulator.words == [word]
+        assert accumulator.is_not_heading
+        assert accumulator.words == []
 
-class TestAccumulatorFromNotHeadingState:
+    def test_adding_number_with_comma(self, accumulator):
+        word = {
+            'fontname': 'JJGECB+DeVinne',
+            'text': '30,',
+            'bottom': 10,
+            'x0': 500.0,
+            'x1': 520.0,
+            'chars': [
+                {'text': '3', 'size': 14, 'y1': 19},
+                {'text': '0', 'size': 14, 'y1': 19},
+                {'text': ',', 'size': 14, 'y1': 19},
+            ]
+        }
+        assert accumulator.add(word) == False
+        assert accumulator.status == HeadingAccumulator.Status.NOT_HEADING
+        assert accumulator.casing == Casing.UNKNOWN
+        assert accumulator.is_not_heading
+        assert accumulator.words == []
+
+    def test_adding_heading_style_emdash(self, accumulator):
+        word = {
+            'fontname': 'JJGECG+NewCenturySchlbk-Bold',
+            'text': '—',
+            'bottom': 10,
+            'x0': 500.0,
+            'x1': 520.0,
+            'chars': [
+                {'text': '—', 'size': 18, 'y1': 19}
+            ]
+        }
+        assert accumulator.add(word) == False
+        assert accumulator.status == HeadingAccumulator.Status.NOT_HEADING
+        assert accumulator.casing == Casing.UNKNOWN
+        assert accumulator.is_not_heading
+        assert accumulator.words == []
+
+class TestFromNotHeadingState:
     @pytest.fixture
     def not_heading_state_accumulator(self, accumulator):
         accumulator.add(
@@ -266,7 +346,7 @@ class TestAccumulatorFromNotHeadingState:
         with pytest.raises(HeadingAccumulator.BadStateError):
             not_heading_state_accumulator.add(word)
 
-class TestAccumulatorFromHeadingCompleteState:
+class TestFromHeadingCompleteState:
     @pytest.fixture
     def heading_complete_state_accumulator(self, accumulator):
         accumulator.add(
@@ -307,7 +387,120 @@ class TestAccumulatorFromHeadingCompleteState:
         with pytest.raises(HeadingAccumulator.BadStateError):
             heading_complete_state_accumulator.add(word)
 
-class TestAccumulatorFromAllCapsHeadingState:
+class TestFromHeadingFontUnknownCapsState:
+    @pytest.fixture
+    def initial_word(self):
+        return {
+                'fontname': 'JJGECG+NewCenturySchlbk-Bold',
+                'text': 'HI',
+                'bottom': 10,
+                'chars': [
+                    {'text': 'H', 'size': 18, 'y1': 10},
+                    {'text': 'I', 'size': 18, 'y1': 10}
+                ]
+        }
+
+    @pytest.fixture
+    def heading_state_accumulator(self, accumulator, initial_word):
+        accumulator.add(initial_word)
+        return accumulator
+
+    def test_state(self, heading_state_accumulator, initial_word):
+        assert heading_state_accumulator.status == HeadingAccumulator.Status.HEADING
+        assert heading_state_accumulator.casing == Casing.UNKNOWN
+        assert heading_state_accumulator.words == [initial_word]
+
+    def test_adding_matching_font_all_caps_word_on_same_line(self, heading_state_accumulator, initial_word):
+        word = {
+            'fontname': 'JJGECG+NewCenturySchlbk-Bold',
+            'bottom': initial_word['bottom'],
+            'text': 'YOU',
+            'chars': [
+                {'text': 'Y', 'size': 18, 'y1': initial_word['bottom']},
+                {'text': 'O', 'size': 18, 'y1': initial_word['bottom']},
+                {'text': 'U', 'size': 18, 'y1': initial_word['bottom']},
+            ]
+        }
+
+        assert heading_state_accumulator.add(word) == True
+        assert heading_state_accumulator.status == HeadingAccumulator.Status.HEADING
+        assert heading_state_accumulator.casing == Casing.UNKNOWN
+        assert not heading_state_accumulator.is_heading_complete()
+        assert heading_state_accumulator.words == [initial_word, word]
+
+    def test_adding_matching_font_normal_caps_word_on_same_line(self, heading_state_accumulator, initial_word):
+        word = {
+            'fontname': 'JJGECG+NewCenturySchlbk-Bold',
+            'bottom': initial_word['bottom'],
+            'text': 'you',
+            'chars': [
+                {'text': 'y', 'size': 18, 'y1': initial_word['bottom']},
+                {'text': 'o', 'size': 18, 'y1': initial_word['bottom']},
+                {'text': 'u', 'size': 18, 'y1': initial_word['bottom']},
+            ]
+        }
+
+        assert heading_state_accumulator.add(word) == True
+        assert heading_state_accumulator.status == HeadingAccumulator.Status.HEADING
+        assert heading_state_accumulator.casing == Casing.NORMAL
+        assert not heading_state_accumulator.is_heading_complete()
+        assert heading_state_accumulator.words == [initial_word, word]
+
+    def test_adding_matching_font_all_caps_word_on_same_line(self, heading_state_accumulator, initial_word):
+        word = {
+            'fontname': 'JJGECG+NewCenturySchlbk-Bold',
+            'bottom': initial_word['bottom'],
+            'text': 'YOU',
+            'chars': [
+                {'text': 'Y', 'size': 18, 'y1': initial_word['bottom']},
+                {'text': 'O', 'size': 18, 'y1': initial_word['bottom']},
+                {'text': 'U', 'size': 18, 'y1': initial_word['bottom']},
+            ]
+        }
+
+        assert heading_state_accumulator.add(word) == True
+        assert heading_state_accumulator.status == HeadingAccumulator.Status.HEADING
+        assert heading_state_accumulator.casing == Casing.ALL_CAPS
+        assert not heading_state_accumulator.is_heading_complete()
+        assert heading_state_accumulator.words == [initial_word, word]
+
+    def test_adding_matching_font_small_caps_word_on_same_line(self, heading_state_accumulator, initial_word):
+        word = {
+            'fontname': 'JJGECG+NewCenturySchlbk-Bold',
+            'bottom': initial_word['bottom'],
+            'text': 'YOU',
+            'chars': [
+                {'text': 'Y', 'size': 18, 'y1': initial_word['bottom']},
+                {'text': 'O', 'size': 15, 'y1': initial_word['bottom']},
+                {'text': 'U', 'size': 15, 'y1': initial_word['bottom']},
+            ]
+        }
+
+        assert heading_state_accumulator.add(word) == True
+        assert heading_state_accumulator.status == HeadingAccumulator.Status.HEADING
+        assert heading_state_accumulator.casing == Casing.SMALL_CAPS
+        assert not heading_state_accumulator.is_heading_complete()
+        assert heading_state_accumulator.words == [initial_word, word]
+
+    def test_adding_content_word_on_same_line(self, heading_state_accumulator, initial_word):
+        word = {
+            'fontname': 'JJGECB+DeVinne',
+            'text': 'there',
+            'bottom': initial_word['bottom'],
+            'chars': [
+                {'text': 't', 'size': 14, 'y1': initial_word['bottom']},
+                {'text': 'h', 'size': 14, 'y1': initial_word['bottom']},
+                {'text': 'e', 'size': 14, 'y1': initial_word['bottom']},
+                {'text': 'r', 'size': 14, 'y1': initial_word['bottom']},
+                {'text': 'e', 'size': 14, 'y1': initial_word['bottom']}
+            ]
+        }
+        assert heading_state_accumulator.add(word) == False
+        assert heading_state_accumulator.status == HeadingAccumulator.Status.HEADING_COMPLETE
+        assert heading_state_accumulator.is_heading_complete()
+        assert heading_state_accumulator.words == [initial_word]
+
+class TestFromAllCapsHeadingState:
     @pytest.fixture
     def initial_word(self):
         return {
@@ -422,7 +615,7 @@ class TestAccumulatorFromAllCapsHeadingState:
         word = {
             'fontname': 'JJGECG+NewCenturySchlbk-Bold',
             'text': 'THERE',
-            'bottom': 5,
+            'bottom': 15,
             'chars': [
                 {'text': 'T', 'size': 18, 'y1': 15},
                 {'text': 'H', 'size': 18, 'y1': 15},
@@ -437,7 +630,37 @@ class TestAccumulatorFromAllCapsHeadingState:
         assert not heading_state_accumulator.is_heading_complete()
         assert heading_state_accumulator.words == [initial_word, word]
 
-class TestAccumulatorFromSmallCapsHeadingState:
+    def test_adding_diff_enumerated_heading_on_diff_line(self, heading_state_accumulator, initial_word):
+        word = {
+            'fontname': 'JJGECB+DeVinne',
+            'text': '(a)',
+            'bottom': 15,
+            'chars': [
+                {'text': '(', 'size': 14, 'y1': 15},
+                {'text': 'a', 'size': 14, 'y1': 15},
+                {'text': ')', 'size': 14, 'y1': 15}
+            ]
+        }
+        assert heading_state_accumulator.add(word) == False
+        assert heading_state_accumulator.status == HeadingAccumulator.Status.HEADING_COMPLETE
+        assert heading_state_accumulator.is_heading_complete()
+        assert heading_state_accumulator.words == [initial_word]
+
+    def test_adding_heading_matching_emdash(self, heading_state_accumulator, initial_word):
+        word = {
+            'fontname': 'JJGECG+NewCenturySchlbk-Bold',
+            'text': '—',
+            'bottom': 10,
+            'chars': [
+                {'text': '—', 'size': 18, 'y1': 10}
+            ]
+        }
+        assert heading_state_accumulator.add(word) == True
+        assert heading_state_accumulator.status == HeadingAccumulator.Status.HEADING
+        assert not heading_state_accumulator.is_heading_complete()
+        assert heading_state_accumulator.words == [initial_word, word]
+
+class TestFromSmallCapsHeadingState:
     @pytest.fixture
     def initial_word(self):
         return {
@@ -455,6 +678,10 @@ class TestAccumulatorFromSmallCapsHeadingState:
         accumulator.add(initial_word)
         return accumulator
 
+    def test_state(self, heading_state_accumulator):
+        assert heading_state_accumulator.status == HeadingAccumulator.Status.HEADING
+        assert heading_state_accumulator.casing == Casing.SMALL_CAPS
+
     def test_adding_content_word_on_same_line(self, heading_state_accumulator, initial_word):
         word = {
             'fontname': 'JJGECB+DeVinne',
@@ -468,8 +695,6 @@ class TestAccumulatorFromSmallCapsHeadingState:
                 {'text': 'u', 'size': 14, 'y1': 10}
             ]
         }
-        assert heading_state_accumulator.status == HeadingAccumulator.Status.HEADING
-        assert heading_state_accumulator.casing == Casing.SMALL_CAPS
         assert heading_state_accumulator.add(word) == False
         assert heading_state_accumulator.status == HeadingAccumulator.Status.HEADING_COMPLETE
         assert heading_state_accumulator.is_heading_complete()
@@ -488,7 +713,6 @@ class TestAccumulatorFromSmallCapsHeadingState:
                 {'text': 'u', 'size': 14, 'y1': 15}
             ]
         }
-        assert heading_state_accumulator.status == HeadingAccumulator.Status.HEADING
         assert heading_state_accumulator.add(word) == False
         assert heading_state_accumulator.status == HeadingAccumulator.Status.HEADING_COMPLETE
         assert heading_state_accumulator.is_heading_complete()
@@ -506,7 +730,6 @@ class TestAccumulatorFromSmallCapsHeadingState:
                 {'text': '0', 'size': 14, 'y1': 5},
             ]
         }
-        assert heading_state_accumulator.status == HeadingAccumulator.Status.HEADING
         assert heading_state_accumulator.add(word) == False
         assert heading_state_accumulator.status == HeadingAccumulator.Status.HEADING
         assert not heading_state_accumulator.is_heading_complete()
@@ -524,7 +747,6 @@ class TestAccumulatorFromSmallCapsHeadingState:
                 {'text': '0', 'size': 14, 'y1': 10},
             ]
         }
-        assert heading_state_accumulator.status == HeadingAccumulator.Status.HEADING
         assert heading_state_accumulator.add(word) == True
         assert heading_state_accumulator.status == HeadingAccumulator.Status.HEADING
         assert not heading_state_accumulator.is_heading_complete()
@@ -543,7 +765,6 @@ class TestAccumulatorFromSmallCapsHeadingState:
                 {'text': 'E', 'size': 12, 'y1': 10},
             ]
         }
-        assert heading_state_accumulator.status == HeadingAccumulator.Status.HEADING
         assert heading_state_accumulator.add(word) == True
         assert heading_state_accumulator.status == HeadingAccumulator.Status.HEADING
         assert not heading_state_accumulator.is_heading_complete()
@@ -553,7 +774,7 @@ class TestAccumulatorFromSmallCapsHeadingState:
         word = {
             'fontname': 'JJGECB+DeVinne',
             'text': 'THERE',
-            'bottom': 5,
+            'bottom': 15,
             'chars': [
                 {'text': 'T', 'size': 14, 'y1': 15},
                 {'text': 'H', 'size': 12, 'y1': 15},
@@ -562,7 +783,6 @@ class TestAccumulatorFromSmallCapsHeadingState:
                 {'text': 'E', 'size': 12, 'y1': 15},
             ]
         }
-        assert heading_state_accumulator.status == HeadingAccumulator.Status.HEADING
         assert heading_state_accumulator.add(word) == True
         assert heading_state_accumulator.status == HeadingAccumulator.Status.HEADING
         assert not heading_state_accumulator.is_heading_complete()
@@ -572,7 +792,7 @@ class TestAccumulatorFromSmallCapsHeadingState:
         word = {
             'fontname': 'JJGECB+DeVinne',
             'text': 'THERE',
-            'bottom': 5,
+            'bottom': 15,
             'chars': [
                 {'text': 'T', 'size': 12, 'y1': 15},
                 {'text': 'H', 'size': 12, 'y1': 15},
@@ -581,7 +801,6 @@ class TestAccumulatorFromSmallCapsHeadingState:
                 {'text': 'E', 'size': 12, 'y1': 15},
             ]
         }
-        assert heading_state_accumulator.status == HeadingAccumulator.Status.HEADING
         assert heading_state_accumulator.add(word) == True
         assert heading_state_accumulator.status == HeadingAccumulator.Status.HEADING
         assert not heading_state_accumulator.is_heading_complete()
@@ -598,7 +817,6 @@ class TestAccumulatorFromSmallCapsHeadingState:
                 {'text': 'C', 'size': 14, 'y1': 10}
             ]
         }
-        assert heading_state_accumulator.status == HeadingAccumulator.Status.HEADING
         assert heading_state_accumulator.add(word) == True
         assert heading_state_accumulator.status == HeadingAccumulator.Status.HEADING
         assert not heading_state_accumulator.is_heading_complete()
@@ -615,11 +833,105 @@ class TestAccumulatorFromSmallCapsHeadingState:
                 {'text': 'C', 'size': 14, 'y1': 15}
             ]
         }
-        assert heading_state_accumulator.status == HeadingAccumulator.Status.HEADING
         assert heading_state_accumulator.add(word) == True
         assert heading_state_accumulator.status == HeadingAccumulator.Status.HEADING
         assert not heading_state_accumulator.is_heading_complete()
         assert heading_state_accumulator.words == [initial_word, word]
+
+    def test_adding_em_dash(self, heading_state_accumulator, initial_word):
+        word = {
+            'fontname': 'JJGECB+DeVinne',
+            'text': '—',
+            'bottom': 10,
+            'chars': [
+                {'text': '—', 'size': 14, 'y1': 10}
+            ]
+        }
+        assert heading_state_accumulator.add(word) == False
+        assert heading_state_accumulator.status == HeadingAccumulator.Status.HEADING_COMPLETE
+        assert heading_state_accumulator.is_heading_complete()
+        assert heading_state_accumulator.words == [initial_word]
+
+    def test_adding_hyphened_heading_word_on_next_line(self, heading_state_accumulator, initial_word):
+        word = {
+            'fontname': 'JJGECB+DeVinne',
+            'text': 'FACE-TO-FACE',
+            'bottom': 15,
+            'chars': [
+                {'text': 'F', 'size': 14, 'y1': 15},
+                {'text': 'A', 'size': 12, 'y1': 15},
+                {'text': 'C', 'size': 12, 'y1': 15},
+                {'text': 'E', 'size': 12, 'y1': 15},
+                {'text': '-', 'size': 14, 'y1': 15},
+                {'text': 'T', 'size': 12, 'y1': 15},
+                {'text': 'O', 'size': 12, 'y1': 15},
+                {'text': '-', 'size': 14, 'y1': 15},
+                {'text': 'F', 'size': 12, 'y1': 15},
+                {'text': 'A', 'size': 12, 'y1': 15},
+                {'text': 'C', 'size': 12, 'y1': 15},
+                {'text': 'E', 'size': 12, 'y1': 15},
+            ]
+        }
+        assert heading_state_accumulator.add(word) == True
+        assert heading_state_accumulator.status == HeadingAccumulator.Status.HEADING
+        assert not heading_state_accumulator.is_heading_complete()
+        assert heading_state_accumulator.words == [initial_word, word]
+
+    def test_enumeration_to_small_caps_that_continues_on_next_line(self, accumulator):
+        font = 'JJGECB+DeVinne'
+        words = [
+            {
+                'fontname': font,
+                'text': '(a)',
+                'bottom': 10,
+                'chars': [
+                    {'text': '(', 'size': 14, 'y1': 10},
+                    {'text': 'a', 'size': 14, 'y1': 10},
+                    {'text': ')', 'size': 14, 'y1': 10},
+                ]
+            },
+            {
+                'fontname': font,
+                'text': 'STATE',
+                'bottom': 10,
+                'chars': [
+                    {'text': 'S', 'size': 14, 'y1': 10},
+                    {'text': 'T', 'size': 12, 'y1': 10},
+                    {'text': 'A', 'size': 12, 'y1': 10},
+                    {'text': 'T', 'size': 12, 'y1': 10},
+                    {'text': 'E', 'size': 12, 'y1': 10},
+                ]
+            },
+            {
+                'fontname': font,
+                'text': 'PRO-',
+                'bottom': 10,
+                'chars': [
+                    {'text': 'P', 'size': 14, 'y1': 10},
+                    {'text': 'R', 'size': 12, 'y1': 10},
+                    {'text': 'O', 'size': 12, 'y1': 10},
+                    {'text': '–', 'size': 14, 'y1': 10}
+                ]
+            },
+            {
+                'fontname': font,
+                'text': 'GRAMS.',
+                'bottom': 10,
+                'chars': [
+                    {'text': 'G', 'size': 12, 'y1': 10},
+                    {'text': 'R', 'size': 12, 'y1': 10},
+                    {'text': 'A', 'size': 12, 'y1': 10},
+                    {'text': 'M', 'size': 12, 'y1': 10},
+                    {'text': 'S', 'size': 12, 'y1': 10},
+                    {'text': '.', 'size': 14, 'y1': 10},
+                ]
+            },
+        ]
+        for word in words:
+            assert accumulator.add(word) == True
+        assert accumulator.status == HeadingAccumulator.Status.HEADING
+        assert not accumulator.is_heading_complete()
+        assert accumulator.words == words
 
     class TestAccumulationFromNumberListing:
         @pytest.fixture
@@ -652,6 +964,12 @@ class TestAccumulatorFromSmallCapsHeadingState:
                 accumulator.add(word)
             return accumulator
 
+        def test_state(self, heading_state_accumulator, initial_words):
+            assert heading_state_accumulator.status == HeadingAccumulator.Status.HEADING
+            assert heading_state_accumulator.casing == Casing.SMALL_CAPS
+            assert not heading_state_accumulator.is_heading_complete()
+            assert heading_state_accumulator.words == initial_words
+
         def test_adding_small_caps_word(self, heading_state_accumulator, initial_words):
             word = {
                 'fontname': 'JJGECB+DeVinne',
@@ -671,7 +989,7 @@ class TestAccumulatorFromSmallCapsHeadingState:
             assert len(heading_state_accumulator.words) == 3
             assert heading_state_accumulator.words == initial_words + [word]
 
-class TestAccumulatorFromAllCapsUndeterminedState:
+class TestFromAllCapsUndeterminedState:
     @pytest.fixture
     def initial_word(self):
         return {
@@ -801,7 +1119,7 @@ class TestAccumulatorFromAllCapsUndeterminedState:
         assert undetermined_state_accumulator.is_heading_complete()
         assert undetermined_state_accumulator.words == [initial_word]
 
-class TestAccumulatorFromNumberParentheticalUndeterminedState:
+class TestFromNumberParentheticalUndeterminedState:
     @pytest.fixture
     def initial_word(self):
         return {
@@ -811,7 +1129,7 @@ class TestAccumulatorFromNumberParentheticalUndeterminedState:
                 'chars': [
                     {'text': '(', 'size': 14, 'y1': 10},
                     {'text': '1', 'size': 14, 'y1': 10},
-                    {'text': '1', 'size': 14, 'y1': 10}
+                    {'text': ')', 'size': 14, 'y1': 10}
                 ]
         }
 
@@ -881,17 +1199,97 @@ class TestAccumulatorFromNumberParentheticalUndeterminedState:
         assert not undetermined_state_accumulator.is_heading_complete()
         assert undetermined_state_accumulator.words == [initial_word, word]
 
-class TestAccumulatorFromNumberUndeterminedState:
+class TestFromLetterParentheticalUndeterminedState:
     @pytest.fixture
     def initial_word(self):
         return {
                 'fontname': 'JJGECB+DeVinne',
-                'text': '30,',
+                'text': '(a)',
+                'bottom': 10,
+                'chars': [
+                    {'text': '(', 'size': 14, 'y1': 10},
+                    {'text': 'a', 'size': 14, 'y1': 10},
+                    {'text': ')', 'size': 14, 'y1': 10}
+                ]
+        }
+
+    @pytest.fixture
+    def undetermined_state_accumulator(self, accumulator, initial_word):
+        accumulator.add(initial_word)
+        return accumulator
+
+    def test_state(self, undetermined_state_accumulator, initial_word):
+        assert undetermined_state_accumulator.status == HeadingAccumulator.Status.UNDETERMINED
+        assert undetermined_state_accumulator.casing == Casing.UNKNOWN
+        assert not undetermined_state_accumulator.is_heading_complete()
+        assert undetermined_state_accumulator.words == [initial_word]
+
+    def test_adding_normal_word(self, undetermined_state_accumulator, initial_word):
+        word = {
+            'fontname': 'JJGECB+DeVinne',
+            'text': 'you',
+            'bottom': 10,
+            'x0': 60.0,
+            'x1': 70.0,
+            'chars': [
+                {'text': 'y', 'size': 14, 'y1': 10},
+                {'text': 'o', 'size': 14, 'y1': 10},
+                {'text': 'u', 'size': 14, 'y1': 10}
+            ]
+        }
+        assert undetermined_state_accumulator.add(word) == False
+        assert undetermined_state_accumulator.status == HeadingAccumulator.Status.NOT_HEADING
+        assert undetermined_state_accumulator.casing == Casing.NORMAL
+        assert undetermined_state_accumulator.is_not_heading()
+        assert undetermined_state_accumulator.words == [initial_word]
+
+    def test_adding_small_caps_word(self, undetermined_state_accumulator, initial_word):
+        word = {
+            'fontname': 'JJGECB+DeVinne',
+            'text': 'HI',
+            'bottom': 10,
+            'x0': 70.0,
+            'x1': 80.0,
+            'chars': [
+                {'text': 'H', 'size': 14, 'y1': 10},
+                {'text': 'I', 'size': 12, 'y1': 10},
+            ]
+        }
+        assert undetermined_state_accumulator.add(word) == True
+        assert undetermined_state_accumulator.status == HeadingAccumulator.Status.HEADING
+        assert undetermined_state_accumulator.casing == Casing.SMALL_CAPS
+        assert not undetermined_state_accumulator.is_heading_complete()
+        assert undetermined_state_accumulator.words == [initial_word, word]
+
+    def test_adding_all_caps_word(self, undetermined_state_accumulator, initial_word):
+        word = {
+            'fontname': 'JJGECB+DeVinne',
+            'text': 'HI',
+            'bottom': 10,
+            'x0': 60.0,
+            'x1': 70.0,
+            'chars': [
+                {'text': 'H', 'size': 14, 'y1': 10},
+                {'text': 'I', 'size': 14, 'y1': 10},
+            ]
+        }
+        assert undetermined_state_accumulator.add(word) == True
+        assert undetermined_state_accumulator.status == HeadingAccumulator.Status.UNDETERMINED
+        assert undetermined_state_accumulator.casing == Casing.UNKNOWN
+        assert not undetermined_state_accumulator.is_heading_complete()
+        assert undetermined_state_accumulator.words == [initial_word, word]
+
+class TestFromNumberUndeterminedState:
+    @pytest.fixture
+    def initial_word(self):
+        return {
+                'fontname': 'JJGECB+DeVinne',
+                'text': '30.',
                 'bottom': 10,
                 'chars': [
                     {'text': '3', 'size': 14, 'y1': 10},
                     {'text': '0', 'size': 14, 'y1': 10},
-                    {'text': ',', 'size': 14, 'y1': 10}
+                    {'text': '.', 'size': 14, 'y1': 10}
                 ]
         }
 
@@ -942,3 +1340,32 @@ class TestAccumulatorFromNumberUndeterminedState:
         assert undetermined_state_accumulator.casing == Casing.UNKNOWN
         assert not undetermined_state_accumulator.is_heading_complete()
         assert undetermined_state_accumulator.words == [initial_word, word]
+
+    def test_adding_a_heading_word_on_next_line(self, undetermined_state_accumulator, initial_word):
+        word = {
+            'fontname': 'JJGECB+DeVinne',
+            'text': 'HI',
+            'bottom': 15,
+            'chars': [
+                {'text': 'H', 'size': 14, 'y1': 15},
+                {'text': 'I', 'size': 12, 'y1': 15}
+            ]
+        }
+        assert undetermined_state_accumulator.add(word) == False
+        assert undetermined_state_accumulator.status == HeadingAccumulator.Status.NOT_HEADING
+        assert undetermined_state_accumulator.is_not_heading()
+
+    def test_adding_enumeration(self, undetermined_state_accumulator, initial_word):
+        word = {
+            'fontname': 'JJGECB+DeVinne',
+            'text': '(a)',
+            'bottom': 10,
+            'chars': [
+                {'text': '(', 'size': 14, 'y1': 10},
+                {'text': 'a', 'size': 14, 'y1': 10},
+                {'text': ')', 'size': 14, 'y1': 10}
+            ]
+        }
+        assert undetermined_state_accumulator.add(word) == False
+        assert undetermined_state_accumulator.status == HeadingAccumulator.Status.NOT_HEADING
+        assert undetermined_state_accumulator.is_not_heading()

@@ -1,71 +1,50 @@
-import string
-import re
+from .content_type import ContentType
+from .content_group import ContentCharacteristics
 from .casing import Casing
-import pdb
 
-class ContentCharacteristics:
-    TOLERANCE = 0.1
-    FORBIDDEN_START_CHARS = "‘"
-
-    def __init__(self, font, size, casing=Casing.UNKNOWN):
-        self.font = font
-        self.size = float(size)
-        self.casing = casing
-
-    def __repr__(self):
-        return f'Content(font={self.font}, size={self.size})'
-
-    def characteristics_match(self, other, accept_casing=[], accept_size_diff=False):
-        return (
-            self.font == other.font
-            and (self.casing == other.casing or other.casing in accept_casing)
-            and (accept_size_diff or abs(self.size - other.size) < self.TOLERANCE)
-        )
-
-class ContentGroup(ContentCharacteristics):
-    def __init__(self, word, casing=None):
-        self.chars = word['chars']
-        self.text = ''.join(item['text'] for item in self.chars)
-        if not casing:
-            if any(c in string.ascii_lowercase for c in self.text):
-                casing = Casing.NORMAL
-            elif any(c in string.digits for c in self.text):
-                casing = Casing.UNKNOWN
-            elif self.is_acronym():
-                casing = Casing.UNKNOWN
-            elif all(c['size'] == self.chars[0]['size'] for c in self.chars):
-                casing = Casing.ALL_CAPS
-            else:
-                casing = Casing.SMALL_CAPS
-        self.y_bottom = self.chars[0]['y1']
-        size = self.chars[0]['size']
-        super().__init__(word['fontname'], size, casing=casing)
-
-
-    def __repr__(self):
-        return f'Content(text={self.text}, font={self.font}, size={self.size})'
-
-    def as_characteristics(self):
-        return ContentCharacteristics(self.font, self.size)
-
-    def same_line_as(self, other):
-        return self.y_bottom == other.y_bottom
-
-    def is_acronym(self):
-        return bool(re.fullmatch(r'([A-Z]\.)+', self.text))
-
-    def is_enumeration(self):
-        return (
-            bool(re.search(r'^\(([a-zA-Z]|\d+)\)$', self.text))
-            or bool(re.search(r'^\([iIvVxXlLcCdDmM]+\)$', self.text)) # lowercase roman numerals
-            or bool(re.search(r'^([a-zA-Z]|\d+)\.$', self.text))
-        )
-
-    def is_number(self):
-        return bool(re.search(r'^\d+$', self.text))
-
-    def is_punctuation(self):
-        return len(self.text) == 1 and not self.text[0].isalnum()
-
-    def starts_with_forbidden_punctuation(self):
-        return self.text[0] in self.FORBIDDEN_START_CHARS
+CONTENT_TYPES = {
+    ContentType.CONTENT: ContentCharacteristics("JJGECB+DeVinne", 14.0, casing=Casing.NORMAL),
+    ContentType.CONTENT_ALT_1: ContentCharacteristics("JJGECE+DeVinne-Italic", 14.0, casing=Casing.NORMAL),
+    ContentType.INTRODUCTORY_SECTION: ContentCharacteristics("JJGECG+NewCenturySchlbk-Bold", 10.0, casing=Casing.NORMAL),
+    ContentType.LINE_NUMBER: ContentCharacteristics("JJGECF+Times-Roman", 14.0, casing=Casing.UNKNOWN),
+    ContentType.PREAMBLE: ContentCharacteristics("JJGECE+DeVinne-Italic", 14.0, casing=Casing.NORMAL),
+    ContentType.TOC_ITEM: ContentCharacteristics("JJGECB+DeVinne", 10.0, casing=Casing.NORMAL),
+    ContentType.TOC_HEADING: ContentCharacteristics("JJGECB+DeVinne", 10.0, casing=Casing.ALL_CAPS),
+    ContentType.PAGE_NUMBER: ContentCharacteristics("JJGECB+DeVinne", 14.0, casing=Casing.NORMAL),
+    ContentType.FILE_PATH: ContentCharacteristics("JJGECF+Times-Roman", 10.0, casing=Casing.NORMAL),
+    ContentType.DIVISION_HEADING_1: ContentCharacteristics("JJGECG+NewCenturySchlbk-Bold", 18.0, casing=Casing.ALL_CAPS),
+    ContentType.DIVISION_HEADING_2: ContentCharacteristics("JJGECG+NewCenturySchlbk-Bold", 14.0, casing=Casing.ALL_CAPS),
+    ContentType.DIVISION_SUBHEADING_1: ContentCharacteristics("JJGECB+DeVinne", 14.0, casing=Casing.ALL_CAPS),
+    ContentType.DIVISION_SUBHEADING_2: ContentCharacteristics("JJGECB+DeVinne", 14.0, casing=Casing.SMALL_CAPS),
+    ContentType.DIVISION_SUBHEADING_3: ContentCharacteristics("JJGECB+DeVinne", 10.5, casing=Casing.ALL_CAPS),
+    ContentType.LAW_SECTION: ContentCharacteristics("JJGECG+NewCenturySchlbk-Bold", 10.0, casing=Casing.ALL_CAPS)
+}
+HEADINGS = [
+    ContentType.DIVISION_HEADING_1,
+    ContentType.DIVISION_HEADING_2,
+    ContentType.DIVISION_SUBHEADING_2,
+    ContentType.DIVISION_SUBHEADING_3,
+    ContentType.LAW_SECTION
+]
+POSSIBLE_HEADINGS = [
+    ContentType.DIVISION_SUBHEADING_1
+]
+HEADING_HIERARCHY = [
+    ContentType.DIVISION_HEADING_1,
+    ContentType.DIVISION_HEADING_2,
+    ContentType.LAW_SECTION,
+    ContentType.DIVISION_SUBHEADING_1,
+    ContentType.DIVISION_SUBHEADING_2,
+    ContentType.DIVISION_SUBHEADING_3
+]
+IGNORABLE = [
+    ContentType.LINE_NUMBER
+]
+CONTENT = [
+    ContentType.CONTENT,
+    ContentType.CONTENT_ALT_1,
+    ContentType.PREAMBLE,
+    ContentType.INTRODUCTORY_SECTION,
+    ContentType.TOC_ITEM,
+    ContentType.TOC_HEADING
+]
